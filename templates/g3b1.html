@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>empty</title>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.jpg') }}">
+</head>
+<script>
+        var intervalId = window.setInterval(function(){
+            job_read_cb_remote();
+        }, {{job_interval__s}}000);
+
+
+        function _document_title() {
+            logging_level = '00';
+            if (document.getElementById("cb__logging_level") == null) {
+                const searchParams = new URLSearchParams(window.location.search);
+                const url_param = "set_logging_level";
+                if (searchParams.has(url_param)) {
+                    const url_param_val = searchParams.get(url_param);
+                    console.log(url_param + ': ' + url_param_val);
+                    logging_level = url_param_val;
+                } else {
+                    return;
+                }
+            } else {
+                logging_level = document.getElementById("cb__logging_level").value;
+            }
+            if (document.title.includes(logging_level)) {
+                return;
+            }
+            console.log('set logging_level to ', logging_level);
+            var logging_level_str = '' + logging_level;
+            switch(parseInt(logging_level)) {
+              case 10:
+                logging_level_str = 'DEBUG';
+                break;
+              case 20:
+                logging_level_str = 'INFO';
+                break;
+              case 30:
+                logging_level_str = 'WARNING';
+                break;
+              case 40:
+                logging_level_str = 'ERROR';
+                break;
+              case 50:
+                logging_level_str = 'CRITITCAL';
+                break;
+              default:
+                // code block
+            }
+            document.title = 'G-CB-1 (logLevel=' + logging_level_str + ' - ' + logging_level + ')'
+        }
+
+        function _cb_remote_push_history_entry(history_Idx) {
+            if (!navigator.clipboard) {
+                // Clipboard API not available
+                // Use https?!
+                console.warn("https?! navigator.clipboard API n/a! history_Idx: ", history_Idx);
+                return;
+            }
+            // Get the cb_remote history entry
+            var history_Str = _cb_remote_Read(history_Idx); //document.getElementById("myInput");
+
+            // Keep for reference:
+            //// Select the text field
+            //// copyText.select();
+            //// copyText.setSelectionRange(0, 99999); // For mobile devices
+
+            // Copy the text inside the text field
+            navigator.clipboard.writeText(history_Str);
+
+            // Log the copied text
+            console.log("Copied the text: " + history_Str);
+
+            // Refresh page, @DO needs improvement
+            //// location.href = "https://gunnar247.pagekite.me/";
+            document.getElementById("cb_remote").value = history_Str;
+            _document_title();
+        }
+
+        function _cb_remote_Read(history_Idx) {
+            // web service call to app.py to read remote CB,
+            // controlled by parent container (parent) of the app.py server.
+            // Parent also controls the clipboard of the OS
+            // Parent always exists (the OS), any citrix installation runs a child
+            // process of the OS. OS clipboard is also a child process. However, citrix
+            // employs its own clipboard which is transparent to the OS.
+            // OS reacts on CTRL-V and if citrix window is active sends the OS clipboard
+            // content to citrix. Citrix runs several child processes and distributes the
+            // CTRL-V cmd rule based. In a typical use case, the remote Citrix session doesn't
+            // support exchanging data with the local OS (user system) via copy and paste.
+            // However, if a child process is an eg a Chrome browser with common security settings
+            // it is possible to use the Chrome browser as a clipboard enhancer via a mini web server
+            // (i.e. Python flask).
+            // hosted on the user local system and exposed via a reverse proxy to the public.
+            // Which contains a single HTML template with some JS as exchange tool for e.g. OS clipboard
+            // citrix clipboard synchronizer.
+            // The current solution doesn't ship with any authentication. That is the fun factor, the random
+            // factor, the machine magic which will one day soon to come, make my personal clipboard unpredictable.
+            // I will paste some content and suddenly view 3rd party data, data of someone who came across
+            // my reverse proxy and send through it a new entry for my clipboard which will automatically be
+            // the current OS clipboard content. And that data I will paste to ... I don't know yet.
+            // And at some point latest when XX content pollutes my clipboard jukebox too much, I can still
+            // add authentifaction or authrotiy.
+            //
+            // https://gunnar247.pagekite.me
+            //
+            var xmlHttp = new XMLHttpRequest();
+            var url = "/cb_remote/read";
+            if (history_Idx) {
+                // if history is requested, otherwise current cb_remote entry
+                // history_Idx starts at 1 ... len)
+                url = url + "?history_Idx=" + history_Idx;
+            }
+
+            // I don't know how to code this asynch
+            xmlHttp.open( "GET", url , false ); // false for synchronous request
+            xmlHttp.send( null );
+            return xmlHttp.responseText;
+        }
+
+        function job_read_cb_remote() {
+            var _cb_remote_ReadResult = _cb_remote_Read();
+            // var cb_client = document.getElementById("cb_remote").value;
+            __form_cb_push_ifnew_entry(_cb_remote_ReadResult);
+        }
+
+        function __form_cb_push_ifnew_entry(_cb_new_entry) {
+            var cb_remote = document.getElementById("cb_remote").value
+            if (cb_remote != _cb_new_entry) {
+                document.getElementById("cb_remote_push").value = _cb_new_entry;
+                document.getElementById('form_cb').submit();
+            }
+            _document_title();
+        }
+
+        function __form_cb_push_from_client() {
+            navigator.clipboard.
+                readText()
+                .then(
+                        (cb_client) => (__form_cb_push_ifnew_entry(cb_client))
+                    );
+        }
+
+
+
+    </script>
+<body onload="_document_title();">
+<a href="https://gunnar247.pagekite.me/?set_logging_level=30">Refresh (/w logLevel.WARNING)</a><br>
+<a href="https://gunnar247.pagekite.me/?set_logging_level=20">Refresh (/w logLevel.INFO)</a><br>
+<a href="https://gunnar247.pagekite.me/?set_logging_level=10">Refresh (/w logLevel.DEBUG)</a><br>
+<br><br>
+<div onclick="__form_cb_push_from_client()">Push cb_client to remote</div>
+<br><br>
+@DO: https://developer.mozilla.org/en-US/docs/Web/API/Permissions_API
+<br><br>
+<form action="{{ url_for('cb_remote_push_ifnew') }}" method="post" id="form_cb">
+    <input type="submit" height="40px">
+    <input type="hidden" id="cb__logging_level" name="cb__logging_level" value="{{logging_level}}"/>
+    <br><br><br>
+    cb_remote_current<br>
+    <textarea id="cb_remote" name="cb_remote" cols="120" rows="10" disabled>{{cb_remote_current}}</textarea>
+    <br><br><br>
+    write to cb_remote_current and push to cb_remote_history<br>
+    <textarea id="cb_remote_push" name="cb_remote_push" cols="120" rows="10" oninput="document.getElementById('form_cb').submit(); "></textarea>
+    <br><br><br>
+    <input type="submit">
+</form>
+<br><br>
+cb_remote_history
+<br><br>
+<ol>
+{% for history_entry in cb_remote_history %}
+    <li><span onclick="_cb_remote_push_history_entry('{{loop.index}}');">{{history_entry}}</span>
+{% if history_entry.startswith('http') %}
+    <a href="{{history_entry}}" target="_out_{{loop.index}}">open</a>
+{% endif %}
+    </li>
+{% endfor %}
+</ol>
+
+</body>
+</html>
