@@ -1,0 +1,8 @@
+# created by virtualenv automatically
+/venv/
+__pycache__/
+/.idea/
+settings.cfg
+settings.sqbpro
+.settings.db3
+__cb_remote_history.7342
